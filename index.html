@@ -450,38 +450,44 @@ function ensureH2C(){
     document.head.appendChild(sc);
   });
 }
+function _wrapText(ctx,text,x,y,maxW,lh){
+  var line='';
+  for(var i=0;i<text.length;i++){ var t=line+text[i]; if(ctx.measureText(t).width>maxW && line){ ctx.fillText(line,x,y); line=text[i]; y+=lh; } else { line=t; } }
+  if(line) ctx.fillText(line,x,y);
+  return y;
+}
 async function captureBlob(){
-  await ensureH2C();
-  var view=document.getElementById('v-'+state.tab);
-  var parent=view.parentNode, next=view.nextSibling, oldDisp=view.style.display;
+  var scale=2, Wl=440, padL=18, W=Wl*scale;
+  var FT='system-ui,-apple-system,"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif';
   var titles={morning:'今日市場早報',market:'行情觀測',macro:'總經指標',calendar:'財經行事曆'};
-  var d=new Date();
-  var ds=('0'+(d.getMonth()+1)).slice(-2)+'/'+('0'+d.getDate()).slice(-2)+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
-  var wrap=document.createElement('div');
-  wrap.style.cssText='position:fixed;left:-10000px;top:0;width:460px;background:#f4f1ea;';
-  wrap.innerHTML=
-    '<div style="background:linear-gradient(135deg,#b11116,#7d0d10);color:#fff;padding:16px 18px;">'
-    +'<div style="font-size:19px;font-weight:800;">📊 市場情報小幫手</div>'
-    +'<div style="font-size:12px;opacity:.9;margin-top:3px;">'+(titles[state.tab]||'')+' · '+ds+'</div>'
-    +'</div>'
-    +'<div class="__cb" style="padding:12px 14px;"></div>'
-    +'<div style="padding:10px 16px 16px;background:#fff;border-top:1px solid #ece7dd;">'
-    +'<div style="font-size:11px;color:#8a8378;line-height:1.5;">※ 本內容由市場情報小幫手整理，僅供參考，非投資建議，投資前請自行評估風險。</div>'
-    +'<div style="font-size:12px;color:#b11116;font-weight:800;margin-top:6px;">→ 新版市場情報小幫手</div>'
-    +'</div>';
-  document.body.appendChild(wrap);
-  var cb=wrap.querySelector('.__cb');
-  cb.appendChild(view); view.style.display='block'; view.classList.add('on');
-  await new Promise(function(r){ setTimeout(r,300); });
-  var canvas;
-  try{
-    canvas=await html2canvas(wrap,{backgroundColor:'#f4f1ea',scale:2,useCORS:true,logging:false});
-  } finally {
-    view.style.display=oldDisp;
-    if(next) parent.insertBefore(view,next); else parent.appendChild(view);
-    wrap.remove();
-  }
-  return await new Promise(function(res){ canvas.toBlob(function(b){res(b);},'image/png',0.95); });
+  var summary=(state.share[state.tab]||'市場情報小幫手').replace(/\r/g,'').trim();
+  var maxTextW=Wl-2*padL, bodyLH=22, lines=[];
+  var mc=document.createElement('canvas').getContext('2d'); mc.font='400 13.5px '+FT;
+  summary.split('\n').forEach(function(par){
+    if(par===''){ lines.push(''); return; }
+    var cur='';
+    for(var i=0;i<par.length;i++){ var t=cur+par[i]; if(mc.measureText(t).width>maxTextW && cur){ lines.push(cur); cur=par[i]; } else cur=t; }
+    if(cur) lines.push(cur);
+  });
+  var headerHL=64, footerHL=78, bpT=16, bpB=10;
+  var bodyHL=bpT+lines.length*bodyLH+bpB, totalL=headerHL+bodyHL+footerHL;
+  var fin=document.createElement('canvas'); fin.width=W; fin.height=Math.round(totalL*scale);
+  var ctx=fin.getContext('2d'); ctx.scale(scale,scale);
+  ctx.fillStyle='#f4f1ea'; ctx.fillRect(0,0,Wl,totalL);
+  var g=ctx.createLinearGradient(0,0,Wl,headerHL); g.addColorStop(0,'#b11116'); g.addColorStop(1,'#7d0d10'); ctx.fillStyle=g; ctx.fillRect(0,0,Wl,headerHL);
+  var d=new Date(); var ds=('0'+(d.getMonth()+1)).slice(-2)+'/'+('0'+d.getDate()).slice(-2)+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+  ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+  ctx.fillStyle='#fff'; ctx.font='800 19px '+FT; ctx.fillText('📊 市場情報小幫手',padL,28);
+  ctx.globalAlpha=.92; ctx.font='400 12px '+FT; ctx.fillText((titles[state.tab]||'')+' · '+ds,padL,47); ctx.globalAlpha=1;
+  ctx.fillStyle='#ffffff'; ctx.fillRect(0,headerHL,Wl,bodyHL);
+  var yy=headerHL+bpT+14;
+  lines.forEach(function(ln){ var em=ln.indexOf('📌')>=0||ln.indexOf('💬')>=0; ctx.fillStyle=em?'#7d0d10':'#26221d'; ctx.font=(em?'700 ':'400 ')+'13.5px '+FT; ctx.fillText(ln,padL,yy); yy+=bodyLH; });
+  var fy=headerHL+bodyHL;
+  ctx.fillStyle='#faf7f0'; ctx.fillRect(0,fy,Wl,footerHL);
+  ctx.strokeStyle='#ece7dd'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(0,fy+.5); ctx.lineTo(Wl,fy+.5); ctx.stroke();
+  ctx.fillStyle='#8a8378'; ctx.font='400 11px '+FT; _wrapText(ctx,'※ 本內容由市場情報小幫手整理，僅供參考，非投資建議，投資前請自行評估風險。',padL,fy+20,Wl-2*padL,15);
+  ctx.fillStyle='#b11116'; ctx.font='800 12px '+FT; ctx.fillText('→ 新版市場情報小幫手',padL,fy+66);
+  return await new Promise(function(res){ fin.toBlob(function(b){res(b);},'image/png',0.95); });
 }
 async function doShare(){
   var btn=document.getElementById('btn-share'); var old=btn?btn.innerHTML:'';
