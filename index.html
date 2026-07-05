@@ -166,6 +166,14 @@
 </head>
 <body>
 
+<div id="enter" style="position:fixed;inset:0;z-index:99999;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px;background:linear-gradient(135deg,#b11116,#7d0d10);color:#fff;transition:opacity .25s;">
+  <div style="font-size:60px;line-height:1;">📊</div>
+  <div style="font-size:23px;font-weight:800;margin:14px 0 4px;">市場情報小幫手</div>
+  <div style="font-size:13px;opacity:.85;margin-bottom:30px;">掌握市場 · 解讀數據 · 直接跟客戶說</div>
+  <button id="enterBtn" style="appearance:none;border:0;border-radius:14px;padding:16px 28px;font-size:17px;font-weight:800;color:#b11116;background:#fff;box-shadow:0 6px 18px rgba(0,0,0,.25);cursor:pointer;">請點選新版市場情報小幫手</button>
+  <div style="font-size:12px;opacity:.8;margin-top:16px;">▲ 點擊上方按鈕進入</div>
+</div>
+
 <header>
   <div class="h-row">
     <div class="logo">📊</div>
@@ -444,12 +452,35 @@ function ensureH2C(){
 }
 async function captureBlob(){
   await ensureH2C();
-  var fab=document.querySelector('.fab'); var vis=fab?fab.style.display:'';
-  if(fab) fab.style.display='none';
-  var y=window.scrollY; window.scrollTo(0,0);
-  var bg=getComputedStyle(document.body).backgroundColor||'#f4f1ea';
-  var canvas=await html2canvas(document.body,{backgroundColor:bg,scale:Math.min(2,window.devicePixelRatio||1),useCORS:true,logging:false,windowWidth:document.documentElement.clientWidth});
-  if(fab) fab.style.display=vis; window.scrollTo(0,y);
+  var view=document.getElementById('v-'+state.tab);
+  var parent=view.parentNode, next=view.nextSibling, oldDisp=view.style.display;
+  var titles={morning:'今日市場早報',market:'行情觀測',macro:'總經指標',calendar:'財經行事曆'};
+  var d=new Date();
+  var ds=('0'+(d.getMonth()+1)).slice(-2)+'/'+('0'+d.getDate()).slice(-2)+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+  var wrap=document.createElement('div');
+  wrap.style.cssText='position:fixed;left:-10000px;top:0;width:460px;background:#f4f1ea;';
+  wrap.innerHTML=
+    '<div style="background:linear-gradient(135deg,#b11116,#7d0d10);color:#fff;padding:16px 18px;">'
+    +'<div style="font-size:19px;font-weight:800;">📊 市場情報小幫手</div>'
+    +'<div style="font-size:12px;opacity:.9;margin-top:3px;">'+(titles[state.tab]||'')+' · '+ds+'</div>'
+    +'</div>'
+    +'<div class="__cb" style="padding:12px 14px;"></div>'
+    +'<div style="padding:10px 16px 16px;background:#fff;border-top:1px solid #ece7dd;">'
+    +'<div style="font-size:11px;color:#8a8378;line-height:1.5;">※ 本內容由市場情報小幫手整理，僅供參考，非投資建議，投資前請自行評估風險。</div>'
+    +'<div style="font-size:12px;color:#b11116;font-weight:800;margin-top:6px;">→ 新版市場情報小幫手</div>'
+    +'</div>';
+  document.body.appendChild(wrap);
+  var cb=wrap.querySelector('.__cb');
+  cb.appendChild(view); view.style.display='block'; view.classList.add('on');
+  await new Promise(function(r){ setTimeout(r,300); });
+  var canvas;
+  try{
+    canvas=await html2canvas(wrap,{backgroundColor:'#f4f1ea',scale:2,useCORS:true,logging:false});
+  } finally {
+    view.style.display=oldDisp;
+    if(next) parent.insertBefore(view,next); else parent.appendChild(view);
+    wrap.remove();
+  }
   return await new Promise(function(res){ canvas.toBlob(function(b){res(b);},'image/png',0.95); });
 }
 async function doShare(){
@@ -463,16 +494,18 @@ async function doShare(){
       await navigator.share({files:[file], title:'市場情報小幫手', text:'市場情報小幫手 · 資料僅供參考，非投資建議'});
       return;
     }
-    // 後援1：LINE 內 → 送含按鈕與警語的卡片
+    // 後援1：另存圖片（save／PDF 概念，可到相簿再分享）
+    try{
+      var url=URL.createObjectURL(blob); var a=document.createElement('a');
+      a.href=url; a.download='市場情報小幫手.png'; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){URL.revokeObjectURL(url);},4000);
+      alert('已將圖卡存成圖片，可到相簿／下載分享'); return;
+    }catch(e2){}
+    // 後援2：LINE 內 → 送含按鈕與警語的卡片
     var b=shareBundle();
     if(window.liff && liff.isApiAvailable && liff.isApiAvailable('shareTargetPicker')){
       await liff.shareTargetPicker([b.flex]); return;
     }
-    // 後援2：下載圖片，讓使用者自行分享
-    var url=URL.createObjectURL(blob); var a=document.createElement('a');
-    a.href=url; a.download='市場情報小幫手.png'; document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(function(){URL.revokeObjectURL(url);},4000);
-    alert('已產生圖片，請從下載/相簿分享');
   }catch(e){
     // 最終後援：複製文字
     try{ var bb=shareBundle(); await navigator.clipboard.writeText(bb.text); alert('已複製分享內容，可貼到聊天室'); }
@@ -494,6 +527,16 @@ async function boot(){
   document.getElementById('btn-refresh').onclick=refreshCurrent;
   document.getElementById('btn-share').onclick=doShare;
 
+  // 入口按鈕頁：點「請點選新版市場情報小幫手」才進 App
+  var eb=document.getElementById('enterBtn'); if(eb) eb.onclick=enterApp;
+  var ov=document.getElementById('enter'); if(ov) ov.style.display='flex';
+}
+var _entered=false;
+async function enterApp(){
+  if(_entered) return; _entered=true;
+  var ov=document.getElementById('enter');
+  if(ov){ ov.style.opacity='0'; setTimeout(function(){ if(ov) ov.style.display='none'; },260); }
+
   // 由網址參數決定初始分頁（給圖文選單深連用）：?tab=morning|market|macro|calendar
   var _initTab=null;
   try{
@@ -513,14 +556,10 @@ async function boot(){
       if(liff.isLoggedIn()){
         const p=await liff.getProfile();
         document.getElementById('hi').textContent=p.displayName?('Hi, '+p.displayName):'';
-        // 登記 userId（之後也能收到早報推播）
         api({api:'register',uid:p.userId}).catch(()=>{});
-      } else if(!liff.isInClient()){
-        // 外部瀏覽器可選擇登入；LINE 內會自動有身分
-        // liff.login();  // 需要時再打開
       }
     }
-  }catch(e){ /* LIFF 尚未設定或在一般瀏覽器預覽時，功能照常運作 */ }
+  }catch(e){}
 }
 document.addEventListener('DOMContentLoaded',boot);
 </script>
