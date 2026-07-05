@@ -357,6 +357,7 @@ async function loadMacro(force){
         <div class="mt-mean">${esc(d.mean)}</div>
       </div>`).join('')}</div><div id="macro-detail"></div>`;
     state._ind=list; state.loaded.macro=true;
+    state.share.macro='🌍 總經指標速覽\n'+list.map(function(d){return '• '+d.name+'：'+d.mean;}).join('\n')+'\n\n（點各指標看「偏強／偏弱」時股債匯金怎麼動）\n\n— 市場情報小幫手';
     body.querySelectorAll('.mtile').forEach(t=>t.onclick=()=>showIndicator(+t.dataset.i));
   }catch(e){ body.innerHTML=`<div class="err">${esc(e.message)}</div>`; }
 }
