@@ -166,13 +166,6 @@
 </head>
 <body>
 
-<div id="enter" style="position:fixed;inset:0;z-index:99999;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px;background:linear-gradient(135deg,#b11116,#7d0d10);color:#fff;transition:opacity .25s;">
-  <div style="font-size:60px;line-height:1;">📊</div>
-  <div style="font-size:23px;font-weight:800;margin:14px 0 4px;">市場情報小幫手</div>
-  <div style="font-size:13px;opacity:.85;margin-bottom:30px;">掌握市場 · 解讀數據 · 直接跟客戶說</div>
-  <button id="enterBtn" style="appearance:none;border:0;border-radius:14px;padding:16px 28px;font-size:17px;font-weight:800;color:#b11116;background:#fff;box-shadow:0 6px 18px rgba(0,0,0,.25);cursor:pointer;">請點選新版市場情報小幫手</button>
-  <div style="font-size:12px;opacity:.8;margin-top:16px;">▲ 點擊上方按鈕進入</div>
-</div>
 
 <header>
   <div class="h-row">
@@ -534,9 +527,8 @@ async function boot(){
   document.getElementById('btn-refresh').onclick=refreshCurrent;
   document.getElementById('btn-share').onclick=doShare;
 
-  // 入口按鈕頁：點「請點選新版市場情報小幫手」才進 App
-  var eb=document.getElementById('enterBtn'); if(eb) eb.onclick=enterApp;
-  var ov=document.getElementById('enter'); if(ov) ov.style.display='flex';
+  // 直接進入 App（圖文選單那層已有入口按鈕）
+  enterApp();
 }
 var _entered=false;
 async function enterApp(){
