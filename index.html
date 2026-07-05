@@ -4,6 +4,16 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
 <title>市場情報小幫手</title>
+<meta name="theme-color" content="#b11116" />
+<meta name="description" content="總經 · 行情 · 每日早報 · 財經行事曆" />
+<link rel="manifest" href="./manifest.webmanifest" />
+<link rel="icon" href="./icon-192.png" />
+<link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="市場小幫手" />
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('./sw.js').catch(function(){});});}</script>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
@@ -423,17 +433,51 @@ function shareBundle(){
     ]}};
   return {text:text, flex:{type:'flex',altText:'請點選新版市場情報小幫手',contents:bubble}};
 }
+function ensureH2C(){
+  return new Promise(function(res,rej){
+    if(window.html2canvas) return res();
+    var sc=document.createElement('script');
+    sc.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    sc.onload=function(){res();}; sc.onerror=function(){rej(new Error('h2c'));};
+    document.head.appendChild(sc);
+  });
+}
+async function captureBlob(){
+  await ensureH2C();
+  var fab=document.querySelector('.fab'); var vis=fab?fab.style.display:'';
+  if(fab) fab.style.display='none';
+  var y=window.scrollY; window.scrollTo(0,0);
+  var bg=getComputedStyle(document.body).backgroundColor||'#f4f1ea';
+  var canvas=await html2canvas(document.body,{backgroundColor:bg,scale:Math.min(2,window.devicePixelRatio||1),useCORS:true,logging:false,windowWidth:document.documentElement.clientWidth});
+  if(fab) fab.style.display=vis; window.scrollTo(0,y);
+  return await new Promise(function(res){ canvas.toBlob(function(b){res(b);},'image/png',0.95); });
+}
 async function doShare(){
-  var b=shareBundle();
+  var btn=document.getElementById('btn-share'); var old=btn?btn.innerHTML:'';
+  if(btn) btn.innerHTML='⏳ 產生圖片…';
   try{
-    if(window.liff && liff.isApiAvailable && liff.isApiAvailable('shareTargetPicker')){
-      var r=await liff.shareTargetPicker([b.flex]);
+    var blob=await captureBlob();
+    var file=new File([blob],'市場情報小幫手.png',{type:'image/png'});
+    // 首選：手機原生分享（可直接把「圖片」分享到 LINE / 任何 App）
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({files:[file], title:'市場情報小幫手', text:'市場情報小幫手 · 資料僅供參考，非投資建議'});
       return;
     }
-  }catch(e){}
-  // 後援（非 LINE 環境）：複製文字版
-  try{ await navigator.clipboard.writeText(b.text); alert('已複製分享內容，可直接貼到聊天室'); }
-  catch(e){ alert(b.text); }
+    // 後援1：LINE 內 → 送含按鈕與警語的卡片
+    var b=shareBundle();
+    if(window.liff && liff.isApiAvailable && liff.isApiAvailable('shareTargetPicker')){
+      await liff.shareTargetPicker([b.flex]); return;
+    }
+    // 後援2：下載圖片，讓使用者自行分享
+    var url=URL.createObjectURL(blob); var a=document.createElement('a');
+    a.href=url; a.download='市場情報小幫手.png'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){URL.revokeObjectURL(url);},4000);
+    alert('已產生圖片，請從下載/相簿分享');
+  }catch(e){
+    // 最終後援：複製文字
+    try{ var bb=shareBundle(); await navigator.clipboard.writeText(bb.text); alert('已複製分享內容，可貼到聊天室'); }
+    catch(_){ alert('分享失敗，請稍後再試'); }
+  }finally{ if(btn) btn.innerHTML=old; }
 }
 
 /* ---------- init ---------- */
