@@ -404,17 +404,36 @@ function refreshCurrent(){
 }
 
 /* ---------- share ---------- */
+var SHARE_LIFF='https://liff.line.me/2010607621-vFu7HScA';
+function shareBundle(){
+  var tab=state.tab;
+  var url=SHARE_LIFF+'?tab='+tab;
+  var summary=(state.share[tab]||'').trim();
+  var warn='※ 本內容由市場情報小幫手整理，僅供參考，非投資建議，投資前請自行評估風險。';
+  var text='【市場情報小幫手】\n'+(summary?summary+'\n\n':'')+'👉 請點選新版市場情報小幫手：\n'+url+'\n\n'+warn;
+  var body=[{type:'text',text:'市場情報小幫手',weight:'bold',size:'lg',color:'#B00020'}];
+  if(summary){ body.push({type:'text',text:summary.slice(0,900),wrap:true,size:'sm',color:'#333333',margin:'md'}); }
+  body.push({type:'separator',margin:'lg'});
+  body.push({type:'text',text:warn,wrap:true,size:'xxs',color:'#999999',margin:'md'});
+  var bubble={type:'bubble',
+    body:{type:'box',layout:'vertical',contents:body},
+    footer:{type:'box',layout:'vertical',contents:[
+      {type:'button',style:'primary',color:'#B00020',height:'sm',
+       action:{type:'uri',label:'請點選新版市場情報小幫手',uri:url}}
+    ]}};
+  return {text:text, flex:{type:'flex',altText:'請點選新版市場情報小幫手',contents:bubble}};
+}
 async function doShare(){
-  const txt=state.share[state.tab] || '市場情報小幫手';
+  var b=shareBundle();
   try{
     if(window.liff && liff.isApiAvailable && liff.isApiAvailable('shareTargetPicker')){
-      await liff.shareTargetPicker([{type:'text',text:txt}]);
+      var r=await liff.shareTargetPicker([b.flex]);
       return;
     }
   }catch(e){}
-  // 後援：複製到剪貼簿
-  try{ await navigator.clipboard.writeText(txt); alert('已複製本頁內容，可貼到聊天室分享'); }
-  catch(e){ alert(txt); }
+  // 後援（非 LINE 環境）：複製文字版
+  try{ await navigator.clipboard.writeText(b.text); alert('已複製分享內容，可直接貼到聊天室'); }
+  catch(e){ alert(b.text); }
 }
 
 /* ---------- init ---------- */
