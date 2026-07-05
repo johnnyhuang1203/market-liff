@@ -431,8 +431,17 @@ async function boot(){
   document.getElementById('btn-refresh').onclick=refreshCurrent;
   document.getElementById('btn-share').onclick=doShare;
 
-  // 先把畫面跑起來，LIFF 慢一點沒關係
-  loadMorning();
+  // 由網址參數決定初始分頁（給圖文選單深連用）：?tab=morning|market|macro|calendar
+  var _initTab=null;
+  try{
+    var _p=new URLSearchParams(location.search);
+    _initTab=_p.get('tab');
+    if(!_initTab && _p.get('liff.state')){
+      _initTab=new URLSearchParams(String(_p.get('liff.state')).replace(/^\?/,'')).get('tab');
+    }
+  }catch(e){}
+  var _valid=['morning','market','macro','calendar'];
+  if(_valid.indexOf(_initTab)>=0){ switchTab(_initTab); } else { loadMorning(); }
 
   // LIFF：免登入取身分
   try{
