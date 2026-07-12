@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
 <title>市場情報小幫手</title>
 <meta name="theme-color" content="#b11116" />
-<meta name="description" content="總經 · 行情 · 每日早報 · 財經行事曆" />
+<meta name="description" content="總經 · 行情 · 每日早報 · 財經行事曆 · 風控" />
 <link rel="manifest" href="./manifest.webmanifest" />
 <link rel="icon" href="./icon-192.png" />
 <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
@@ -141,6 +141,23 @@
   .cal-name{font-size:13.5px;font-weight:700}
   .cal-note{font-size:12px;color:var(--sub);margin-top:2px;line-height:1.5}
 
+  /* Risk（風控） */
+  .gauge-wrap{position:relative;height:150px;margin:4px 0 2px}
+  .gauge-num{position:absolute;left:0;right:0;top:76px;text-align:center;pointer-events:none}
+  .gauge-num .n{font-size:34px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+  .gauge-num .t{font-size:12px;font-weight:800;margin-top:3px}
+  .risk-item{padding:10px 2px;border-bottom:1px dashed var(--line)}
+  .risk-item:last-child{border-bottom:0}
+  .ri-top{display:flex;align-items:center;gap:6px}
+  .ri-name{font-size:13.5px;font-weight:700}
+  .ri-cat{font-size:10px;font-weight:800;color:var(--sub);background:#f0ede6;border-radius:10px;padding:1px 7px}
+  .ri-val{margin-left:auto;font-size:14px;font-weight:800;font-variant-numeric:tabular-nums}
+  .ri-meta{display:flex;align-items:center;gap:8px;margin-top:5px;font-size:11px;color:var(--sub)}
+  .ri-lv{font-weight:800;flex:0 0 auto;min-width:36px}
+  .ri-bar{flex:1;height:6px;border-radius:6px;background:#f0ede6;overflow:hidden}
+  .ri-bar i{display:block;height:100%;border-radius:6px}
+  .ri-desc{font-size:11.5px;color:var(--sub);margin-top:4px;line-height:1.5}
+
   /* Skeleton */
   .sk{background:linear-gradient(90deg,#eee 25%,#f5f5f5 37%,#eee 63%);background-size:400% 100%;
     animation:sh 1.2s infinite;border-radius:8px}
@@ -185,6 +202,7 @@
   <div class="tab active" data-tab="morning"><span class="ic">☀️</span>早報</div>
   <div class="tab" data-tab="market"><span class="ic">📈</span>行情</div>
   <div class="tab" data-tab="macro"><span class="ic">🌍</span>總經</div>
+  <div class="tab" data-tab="risk"><span class="ic">🛡️</span>風控</div>
   <div class="tab" data-tab="calendar"><span class="ic">🗓</span>行事曆</div>
 </nav>
 
@@ -212,6 +230,12 @@
   <section class="view" id="v-macro">
     <div class="sec-title"><span class="dot"></span>總經指標　<span style="font-weight:600;font-size:11.5px;color:var(--sub)">點卡片看「偏強/偏弱時市場怎麼動」</span></div>
     <div id="macro-body"></div>
+  </section>
+
+  <!-- 風控 -->
+  <section class="view" id="v-risk">
+    <div class="sec-title"><span class="dot"></span>系統風險監測<span class="updated" id="up-risk"></span></div>
+    <div id="risk-body"></div>
   </section>
 
   <!-- 行事曆 -->
@@ -370,6 +394,53 @@ function showIndicator(i){
   state.share.macro='📈 '+d.name+'\n偏強時：股市 '+d.eq+'、殖利率 '+d.yield+'、美元 '+d.usd+'、黃金 '+d.gold+'\n💬 '+d.say;
 }
 
+/* ---------- 風控 ---------- */
+const RISK_LV={ok:['#0a8f52','安全'],mid:['#c9a227','中性'],warn:['#e07b00','警戒'],danger:['#e11d2a','高風險']};
+function riskColor(s){return s>=80?'#e11d2a':(s>=60?'#e07b00':(s>=40?'#c9a227':'#0a8f52'));}
+function riskLabel(s){return s>=80?'高風險':(s>=60?'偏高警戒':(s>=40?'中性':'低度風險'));}
+function drawGauge(score){
+  const el=document.getElementById('ch-gauge'); if(!el||!window.Chart) return;
+  if(state.charts['ch-gauge']){state.charts['ch-gauge'].destroy();}
+  state.charts['ch-gauge']=new Chart(el,{type:'doughnut',
+    data:{datasets:[{data:[score,100-score],backgroundColor:[riskColor(score),'#f0ede6'],borderWidth:0,borderRadius:8}]},
+    options:{rotation:270,circumference:180,cutout:'72%',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{enabled:false}}}});
+}
+async function loadRisk(force){
+  const body=document.getElementById('risk-body');
+  if(state.loaded.risk && !force) return;
+  body.innerHTML=skel(8);
+  try{
+    const d=await api({api:'risk'},60000);  // 首次抓 FRED 較慢，之後走快取
+    if(d.error){body.innerHTML=`<div class="err">${esc(d.error)}</div>`;return;}
+    document.getElementById('up-risk').textContent='更新 '+d.time;
+    const rows=(d.items||[]).map(x=>{
+      if(x.error)return `<div class="risk-item"><div class="ri-top"><span class="ri-name">${esc(x.name)}</span>
+        <span class="ri-val flat">暫無法載入</span></div></div>`;
+      const lv=RISK_LV[x.level]||RISK_LV.mid;
+      const val=(x.value==null?'—':Number(x.value).toLocaleString('en-US',{maximumFractionDigits:2}))+(x.unit||'');
+      return `<div class="risk-item">
+        <div class="ri-top"><span class="ri-name">${esc(x.name)}</span><span class="ri-cat">${esc(x.cat||'')}</span>
+        <span class="ri-val" style="color:${lv[0]}">${val}</span></div>
+        <div class="ri-meta"><span class="ri-lv" style="color:${lv[0]}">${lv[1]}</span>
+        <span class="ri-bar"><i style="width:${x.pctile}%;background:${lv[0]}"></i></span>
+        <span>10年位階 ${x.pctile}%</span></div>
+        <div class="ri-desc">${esc(x.desc||'')}${x.date?' · '+esc(x.date):''}</div></div>`;
+    }).join('');
+    body.innerHTML=`<div class="card"><div class="card-h">🛡️ 綜合風險分數<span class="tag">7 指標 · 10 年百分位加權</span></div>
+      <div class="gauge-wrap"><canvas id="ch-gauge"></canvas>
+      <div class="gauge-num"><div class="n" style="color:${riskColor(d.score||0)}">${d.score==null?'—':d.score}</div>
+      <div class="t" style="color:${riskColor(d.score||0)}">${d.score==null?'':riskLabel(d.score)}</div></div></div>
+      ${aiBlock(d.interp)}</div>
+      <div class="card"><div class="card-h">📉 風險指標<span class="tag">黑天鵝 · 灰犀牛 · 信用</span></div>${rows}</div>`;
+    drawGauge(d.score||0);
+    state.loaded.risk=true;
+    state.share.risk='🛡️ 系統風險監測 '+d.time+'\n綜合風險分數：'+d.score+'/100（'+riskLabel(d.score||0)+'）\n'
+      +(d.items||[]).filter(x=>!x.error).map(x=>'• '+x.name+'：'+Number(x.value).toFixed(2)+(x.unit||'')+'（位階 '+x.pctile+'%）').join('\n')
+      +(d.interp?('\n\n📌 '+d.interp):'')+'\n\n— 市場情報小幫手';
+  }catch(e){ body.innerHTML=`<div class="err">${esc(e.message)}</div>`; }
+}
+
 async function loadCalendar(force){
   const body=document.getElementById('calendar-body');
   if(state.loaded.calendar && !force) return;
@@ -405,6 +476,7 @@ function switchTab(name){
   if(name==='morning')loadMorning();
   if(name==='market')loadMarket();
   if(name==='macro')loadMacro();
+  if(name==='risk')loadRisk();
   if(name==='calendar')loadCalendar();
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -412,6 +484,7 @@ function refreshCurrent(){
   if(state.tab==='morning')loadMorning(true);
   if(state.tab==='market')loadMarket(true);
   if(state.tab==='macro'){state.loaded.macro=false;loadMacro(true);}
+  if(state.tab==='risk'){state.loaded.risk=false;loadRisk(true);}
   if(state.tab==='calendar'){state.loaded.calendar=false;loadCalendar(true);}
 }
 
@@ -453,7 +526,7 @@ function _wrapText(ctx,text,x,y,maxW,lh){
 async function captureBlob(){
   var scale=2, Wl=440, padL=18, W=Wl*scale;
   var FT='system-ui,-apple-system,"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif';
-  var titles={morning:'今日市場早報',market:'行情觀測',macro:'總經指標',calendar:'財經行事曆'};
+  var titles={morning:'今日市場早報',market:'行情觀測',macro:'總經指標',risk:'系統風險監測',calendar:'財經行事曆'};
   var summary=(state.share[state.tab]||'市場情報小幫手').replace(/\r/g,'').trim();
   var maxTextW=Wl-2*padL, bodyLH=22, lines=[];
   var mc=document.createElement('canvas').getContext('2d'); mc.font='400 13.5px '+FT;
@@ -536,7 +609,7 @@ async function enterApp(){
   var ov=document.getElementById('enter');
   if(ov){ ov.style.opacity='0'; setTimeout(function(){ if(ov) ov.style.display='none'; },260); }
 
-  // 由網址參數決定初始分頁（給圖文選單深連用）：?tab=morning|market|macro|calendar
+  // 由網址參數決定初始分頁（給圖文選單深連用）：?tab=morning|market|macro|risk|calendar
   var _initTab=null;
   try{
     var _p=new URLSearchParams(location.search);
@@ -545,7 +618,7 @@ async function enterApp(){
       _initTab=new URLSearchParams(String(_p.get('liff.state')).replace(/^\?/,'')).get('tab');
     }
   }catch(e){}
-  var _valid=['morning','market','macro','calendar'];
+  var _valid=['morning','market','macro','risk','calendar'];
   if(_valid.indexOf(_initTab)>=0){ switchTab(_initTab); } else { loadMorning(); }
 
   // LIFF：免登入取身分
